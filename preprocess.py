@@ -1,4 +1,5 @@
 import sys
+import base64
 import pickle
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 from scipy.stats import entropy
 from fast_histogram import histogram2d
+import plotly.figure_factory as ff
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -207,64 +209,87 @@ def find_group_depndencies(sess_results):
 
 
 def plot_similarity_hist(similarity_dict):
-    fig = go.Figure()
-    for key, df_sim in similarity_dict.items():
-        fig.add_trace(go.Histogram(
-            x=df_sim.jensen_shennon_divergance,
-            histnorm='percent',
-            name=key,  # name used in legend and hover labels
-            # xbins=dict(  # bins used for histogram
-            #     start=0.0,
-            #     end=1.0,
-            #     size=0.1
-            # ),
-            # marker_color='#EB89B5',
-            opacity=0.75))
+    group_labels = ["Нейтральні тексти",
+                    "Негативні тексти", "Позитивні тексти"]
+    colors = ['#4F57BB', '#A84C3A', '#499B79']
+    hist_data = [similarity_dict[group_labels[0]].dropna(
+            ).jensen_shennon_divergance.values,
+                 similarity_dict[group_labels[1]].dropna(
+            ).jensen_shennon_divergance.values,
+                 similarity_dict[group_labels[2]].dropna(
+            ).jensen_shennon_divergance.values, ]
 
-    fig.update_layout(
-        title_text=('Jensen Shennon Divergance similarity with uniform '
-                    'distribution'),  # title of plot
-        xaxis_title_text='Similarity',  # xaxis label
-        yaxis_title_text='Count',  # yaxis label
-        bargap=0.2,  # gap between bars of adjacent location coordinates
-        bargroupgap=0.1  # gap between bars of the same location coordinates
-    )
+    # Create distplot with curve_type set to 'normal'
+    fig = ff.create_distplot(hist_data, group_labels,
+                             colors=colors, bin_size=.02,
+                             )
+    # Add title
+    fig.update_layout(title_text=('Jensen Shennon Divergance similarity with '
+                                  'uniform distribution'),
+                      xaxis_range=[0.3, 0.7],
+                      bargap=0.2,  # gap between bars of adjacent location coordinates
+                      bargroupgap=0.1,  # gap between bars of the same location coordinates
+                      width=900, height=700
+                      )
 
-    return fig
+    columns = st.beta_columns([1, 3, 1])
+    columns[1].plotly_chart(fig)
 
-if __name__ == '__main__':
-    meta_df = pd.read_csv('meta.csv', index_col=0)
-    sess_dict = get_sess_dict(meta_df, reload=False)
-    sess_results = get_sess_results(sess_dict, reload=False)
-    similarity_dict = find_group_depndencies(sess_results)
 
-    sim_fig = plot_similarity_hist(similarity_dict)
-    st.set_page_config(layout="wide")
+def create_pdf_markdown(file_path):
+    with open(file_path, "rb") as f:
+        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="410" height="500" type="application/pdf"></iframe>'
+    return pdf_display
 
-    columns = st.beta_columns([1, 2, 1])
-    columns[1].plotly_chart(sim_fig)
 
+def similarity_clusters_visualization(similarity_dict: dict):
     for key, df in similarity_dict.items():
 
         quantiles = df.quantile([0.25, 0.5, 0.75])
 
-        st.subheader(key)
+        st.header(key)
         columns = st.beta_columns(3)
 
         q1 = df[(df <= quantiles.loc[0.25,
                                      "jensen_shennon_divergance"]).values]
         q12 = df[(df >= quantiles.loc[0.25,
-                                     "jensen_shennon_divergance"]).values
-                & (df <= quantiles.loc[0.75,
-                                       "jensen_shennon_divergance"]).values]
+                                      "jensen_shennon_divergance"]).values
+                 & (df <= quantiles.loc[0.75,
+                                        "jensen_shennon_divergance"]).values]
         q2 = df[(df >= quantiles.loc[0.75,
                                      "jensen_shennon_divergance"]).values]
+
         columns[0].subheader("High level (< Q1)")
-        columns[0].write(q1, use_column_width=True)
+        option0 = columns[0].selectbox('choose user:', q1.index.tolist())
+        pdf_markdown = create_pdf_markdown(
+            "dataset_journalists/reading_heatmaps_filtered/personal"
+            f"/{key}/{option0}.pdf")
+        columns[0].markdown(pdf_markdown, unsafe_allow_html=True)
 
         columns[1].subheader("Medium level  (Q1 < X < Q2)")
-        columns[1].write(q12, use_column_width=True)
-        
-        columns[2].subheader("Low level  (> Q2)")
-        columns[2].write(q2, use_column_width=True)
+        option1 = columns[1].selectbox('choose user:', q12.index.tolist())
+        pdf_markdown = create_pdf_markdown(
+            "dataset_journalists/reading_heatmaps_filtered/personal"
+            f"/{key}/{option1}.pdf")
+        columns[1].markdown(pdf_markdown, unsafe_allow_html=True)
 
+        columns[2].subheader("Low level  (> Q2)")
+        option2 = columns[2].selectbox('choose user:', q2.index.tolist())
+        pdf_markdown = create_pdf_markdown(
+            "dataset_journalists/reading_heatmaps_filtered/personal"
+            f"/{key}/{option2}.pdf")
+        columns[2].markdown(pdf_markdown, unsafe_allow_html=True)
+
+
+if __name__ == '__main__':
+    meta_df = pd.read_csv('meta.csv', index_col=0)
+    sess_dict = get_sess_dict(meta_df, reload=False)
+    sess_results = get_sess_results(sess_dict, reload=False)
+
+    similarity_dict = find_group_depndencies(sess_results)
+
+    # streamlit visualization
+    st.set_page_config(layout="wide")
+    plot_similarity_hist(similarity_dict)
+    similarity_clusters_visualization(similarity_dict)
