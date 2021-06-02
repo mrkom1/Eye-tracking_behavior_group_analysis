@@ -9,6 +9,7 @@ from tqdm import tqdm
 from scipy.stats import entropy
 from fast_histogram import histogram2d
 import plotly.figure_factory as ff
+import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -97,22 +98,49 @@ def get_sess_results(sess_dict: dict, reload: bool = False):
         sess_results = {}
 
         pbar = tqdm(sess_dict.items())
+        old_pdf_path = ""
         for p, sess in pbar:
             pbar.set_description(f"Processing {p}")
 
             # process pdf
             pdf_path = ROOT_DATA_FOLDER / (p.split("/")[2] + ".pdf")
-            pdf_data = PdfData(pdf_path)
-            pdf_data.process()
+            if pdf_path != old_pdf_path:
+                pdf_data = PdfData(pdf_path)
+                pdf_data.process()
+                old_pdf_path = pdf_path
 
-            res = sess.process(scrolling_map=False, heatmap_points=False)
+            res = sess.process(reading_model=reading_model,
+                               scrolling_map=False, 
+                               heatmap_points=False,
+                               aggregate_pages_stats=True,)
+
             res['tracker']["reading_probs"] = reading_model.predict(
                 res['tracker'],
                 content_changes_df=res['content']
                 )
             tracker = process_reading_gazes(res["tracker"], pdf_data)
+            # heatmap
             res["heatmap_points"] = group_points_by_block_id(
                 tracker.loc[tracker.reading_mask])
+            # reading speed
+            reading_speed_dict = {}
+            reading_speed_dict["all"] = {}
+            reading_speed_dict["reading"] = {}
+            for page_id, page_time in res["pages_stats"].items():
+                reading_speed_dict["all"][page_id] = round(
+                    np.nan_to_num(
+                        pdf_data.words_count[page_id]
+                        / (page_time['gaze'] / 60_000),
+                        neginf=0),
+                    1)
+                reading_speed_dict["reading"][page_id] = round(
+                    np.nan_to_num(
+                        pdf_data.words_count[page_id]
+                        / (page_time['reading'] / 60_000),
+                        neginf=0),
+                    1)
+            res["reading_speed"] = reading_speed_dict
+
             sess_results[p] = res
         with open(ROOT_DATA_FOLDER / 'sessions_results.pickle', 'wb') as f:
             pickle.dump(sess_results, f)
@@ -243,7 +271,32 @@ def create_pdf_markdown(file_path):
     return pdf_display
 
 
-def similarity_clusters_visualization(similarity_dict: dict):
+def reading_speed_barplot(rs_dict: dict):
+    fig = go.Figure(data=[
+        go.Bar(name='All gazes',  
+               y=[*rs_dict["all"]],
+               x=[*rs_dict["all"].values()],
+               text=[*rs_dict["all"].values()],
+               orientation='h'),
+        go.Bar(name='Reading gazes',
+               y=[*rs_dict["reading"]],
+               x=[*rs_dict["reading"].values()],
+               text=[*rs_dict["reading"].values()],
+               orientation='h'),
+    ])
+
+    fig.update_layout(
+        xaxis_title="reading speed",
+        yaxis_title="page",
+        width=500,
+        height=400
+    )
+    fig['layout']['yaxis']['autorange'] = "reversed"
+    return fig
+
+
+def similarity_clusters_visualization(similarity_dict: dict,
+                                      sess_results: dict):
     for key, df in similarity_dict.items():
 
         quantiles = df.quantile([0.25, 0.5, 0.75])
@@ -262,13 +315,19 @@ def similarity_clusters_visualization(similarity_dict: dict):
 
         columns[0].subheader("High level (< Q1)")
         option0 = columns[0].selectbox('choose user:', q1.index.tolist())
-        pdf_markdown = create_pdf_markdown(
-            "dataset_journalists/reading_heatmaps_filtered/personal"
-            f"/{key}/{option0}.pdf")
+        rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
+                                f"/{key}/{option0}/1"]["reading_speed"])
+        columns[0].plotly_chart(reading_speed_barplot(rs_dict))
+        file_name = ("dataset_journalists/reading_heatmaps_filtered/personal"
+                    f"/{key}/{option0}.pdf")
+        pdf_markdown = create_pdf_markdown(file_name)
         columns[0].markdown(pdf_markdown, unsafe_allow_html=True)
 
         columns[1].subheader("Medium level  (Q1 < X < Q2)")
         option1 = columns[1].selectbox('choose user:', q12.index.tolist())
+        rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
+                                f"/{key}/{option1}/1"]["reading_speed"])
+        columns[1].plotly_chart(reading_speed_barplot(rs_dict))
         pdf_markdown = create_pdf_markdown(
             "dataset_journalists/reading_heatmaps_filtered/personal"
             f"/{key}/{option1}.pdf")
@@ -276,6 +335,9 @@ def similarity_clusters_visualization(similarity_dict: dict):
 
         columns[2].subheader("Low level  (> Q2)")
         option2 = columns[2].selectbox('choose user:', q2.index.tolist())
+        rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
+                                f"/{key}/{option2}/1"]["reading_speed"])
+        columns[2].plotly_chart(reading_speed_barplot(rs_dict))
         pdf_markdown = create_pdf_markdown(
             "dataset_journalists/reading_heatmaps_filtered/personal"
             f"/{key}/{option2}.pdf")
@@ -292,4 +354,4 @@ if __name__ == '__main__':
     # streamlit visualization
     st.set_page_config(layout="wide")
     plot_similarity_hist(similarity_dict)
-    similarity_clusters_visualization(similarity_dict)
+    similarity_clusters_visualization(similarity_dict, sess_results)
