@@ -1,0 +1,7 @@
+numpy
+pandas
+tqdm
+scipy
+fast_histogram
+plotly
+streamlit
