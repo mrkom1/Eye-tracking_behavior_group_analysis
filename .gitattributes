@@ -1,1 +1,2 @@
 dataset_journalists/sessions_results.pickle filter=lfs diff=lfs merge=lfs -text
+dataset_journalists/reading_heatmaps_filtered/personal/** filter=lfs diff=lfs merge=lfs -text
