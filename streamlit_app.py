@@ -13,6 +13,13 @@ import plotly.graph_objects as go
 ROOT_DATA_FOLDER = Path('dataset_journalists')
 
 
+DIR_RENAME_DICT = {
+    "Нейтральні тексти": "neutral",
+    "Позитивні тексти": "positive",
+    "Негативні тексти": "negative",
+}
+
+
 def load_sess_results():
     sess_results = {}
     with open(ROOT_DATA_FOLDER / 'sessions_results.pickle', 'rb') as f:
@@ -188,7 +195,7 @@ def similarity_clusters_visualization(similarity_dict: dict,
                                 f"/{key}/{option0}/1"]["reading_speed"])
         columns[0].plotly_chart(reading_speed_barplot(rs_dict))
         file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
-                     / key / f"{option0}.pdf")
+                     / DIR_RENAME_DICT[key] / f"{option0}.pdf")
         pdf_markdown = create_pdf_markdown(file_name)
         columns[0].markdown(pdf_markdown, unsafe_allow_html=True)
 
@@ -198,7 +205,7 @@ def similarity_clusters_visualization(similarity_dict: dict,
                                 f"/{key}/{option1}/1"]["reading_speed"])
         columns[1].plotly_chart(reading_speed_barplot(rs_dict))
         file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
-                     / key / f"{option1}.pdf")
+                     / DIR_RENAME_DICT[key] / f"{option1}.pdf")
         pdf_markdown = create_pdf_markdown(file_name)
         columns[1].markdown(pdf_markdown, unsafe_allow_html=True)
 
@@ -208,7 +215,7 @@ def similarity_clusters_visualization(similarity_dict: dict,
                                 f"/{key}/{option2}/1"]["reading_speed"])
         columns[2].plotly_chart(reading_speed_barplot(rs_dict))
         file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
-                     / key / f"{option2}.pdf")
+                     / DIR_RENAME_DICT[key] / f"{option2}.pdf")
         pdf_markdown = create_pdf_markdown(file_name)
         columns[2].markdown(pdf_markdown, unsafe_allow_html=True)
 
