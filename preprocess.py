@@ -133,7 +133,11 @@ def get_sess_results(sess_dict: dict, reload: bool = False):
                         neginf=0),
                     1)
             res["reading_speed"] = reading_speed_dict
-
+            res.pop("tracker")
+            res.pop("pages_stats")
+            res.pop("total_reading")
+            res.pop("face_presence")
+            res.pop("content")
             sess_results[p] = res
         with open(ROOT_DATA_FOLDER / 'sessions_results.pickle', 'wb') as f:
             pickle.dump(sess_results, f)
