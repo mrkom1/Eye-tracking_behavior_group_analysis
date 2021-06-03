@@ -187,8 +187,8 @@ def similarity_clusters_visualization(similarity_dict: dict,
         rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
                                 f"/{key}/{option0}/1"]["reading_speed"])
         columns[0].plotly_chart(reading_speed_barplot(rs_dict))
-        file_name = ("dataset_journalists/reading_heatmaps_filtered/personal"
-                     f"/{key}/{option0}.pdf")
+        file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
+                     / key / f"{option0}.pdf")
         pdf_markdown = create_pdf_markdown(file_name)
         columns[0].markdown(pdf_markdown, unsafe_allow_html=True)
 
@@ -197,9 +197,9 @@ def similarity_clusters_visualization(similarity_dict: dict,
         rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
                                 f"/{key}/{option1}/1"]["reading_speed"])
         columns[1].plotly_chart(reading_speed_barplot(rs_dict))
-        pdf_markdown = create_pdf_markdown(
-            "dataset_journalists/reading_heatmaps_filtered/personal"
-            f"/{key}/{option1}.pdf")
+        file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
+                     / key / f"{option1}.pdf")
+        pdf_markdown = create_pdf_markdown(file_name)
         columns[1].markdown(pdf_markdown, unsafe_allow_html=True)
 
         columns[2].subheader("Low level  (> Q2)")
@@ -207,9 +207,9 @@ def similarity_clusters_visualization(similarity_dict: dict,
         rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
                                 f"/{key}/{option2}/1"]["reading_speed"])
         columns[2].plotly_chart(reading_speed_barplot(rs_dict))
-        pdf_markdown = create_pdf_markdown(
-            "dataset_journalists/reading_heatmaps_filtered/personal"
-            f"/{key}/{option2}.pdf")
+        file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
+                     / key / f"{option2}.pdf")
+        pdf_markdown = create_pdf_markdown(file_name)
         columns[2].markdown(pdf_markdown, unsafe_allow_html=True)
 
 

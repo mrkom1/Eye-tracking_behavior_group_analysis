@@ -1,4 +1,10 @@
 .ipynb_checkpoints
 bin
-dataset_journalists
 *.ipynb
+dataset_journalists/eye_tracking_recordings
+dataset_journalists/pdf_pages
+dataset_journalists/reading_heatmap
+dataset_journalists/sessions_dict.pickle
+dataset_journalists/Негативні тексти.pdf
+dataset_journalists/Нейтральні тексти.pdf
+dataset_journalists/Позитивні тексти.pdf
