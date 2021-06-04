@@ -159,8 +159,7 @@ def plot_similarity_hist(similarity_dict):
                              colors=colors, bin_size=.02,
                              )
     # Add title
-    fig.update_layout(title_text=('Jensen Shennon Divergance similarity with '
-                                  'uniform distribution:'),
+    fig.update_layout(title_text=('Jensen Shennon Divergance similarity:'),
                     #   xaxis_range=[0.0, 1.0],
                       bargap=0.2,  # gap between bars of adjacent location coordinates
                       bargroupgap=0.1,  # gap between bars of the same location coordinates
