@@ -171,53 +171,44 @@ def reading_speed_barplot(rs_dict: dict):
     return fig
 
 
+def plot_user_markdown(column, q, sess_results, key):
+    option = column.selectbox('Choose user:', q.index.tolist())
+    rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
+                            f"/{key}/{option}/1"]["reading_speed"])
+    column.plotly_chart(reading_speed_barplot(rs_dict))
+    file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
+                 / DIR_RENAME_DICT[key] / f"{option}.pdf")
+    pdf_markdown = create_pdf_markdown(file_name)
+    column.markdown(pdf_markdown, unsafe_allow_html=True)
+
+
+
 def similarity_clusters_visualization(similarity_dict: dict,
                                       sess_results: dict):
-    for key, df in similarity_dict.items():
+    key = st.selectbox('Select type:', [*similarity_dict.keys()])
+    df = similarity_dict[key]
 
-        quantiles = df.quantile([0.25, 0.5, 0.75])
+    quantiles = df.quantile([0.25, 0.5, 0.75])
 
-        st.header(key)
-        columns = st.beta_columns(3)
+    columns = st.beta_columns(3)
 
-        q1 = df[(df <= quantiles.loc[0.25,
-                                     "jensen_shennon_divergance"]).values]
-        q12 = df[(df >= quantiles.loc[0.25,
-                                      "jensen_shennon_divergance"]).values
-                 & (df <= quantiles.loc[0.75,
-                                        "jensen_shennon_divergance"]).values]
-        q2 = df[(df >= quantiles.loc[0.75,
-                                     "jensen_shennon_divergance"]).values]
+    q1 = df[(df <= quantiles.loc[0.25,
+                                    "jensen_shennon_divergance"]).values]
+    q12 = df[(df >= quantiles.loc[0.25,
+                                    "jensen_shennon_divergance"]).values
+                & (df <= quantiles.loc[0.75,
+                                    "jensen_shennon_divergance"]).values]
+    q2 = df[(df >= quantiles.loc[0.75,
+                                    "jensen_shennon_divergance"]).values]
 
-        columns[0].subheader("High level (< Q1)")
-        option0 = columns[0].selectbox('choose user:', q1.index.tolist())
-        rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
-                                f"/{key}/{option0}/1"]["reading_speed"])
-        columns[0].plotly_chart(reading_speed_barplot(rs_dict))
-        file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
-                     / DIR_RENAME_DICT[key] / f"{option0}.pdf")
-        pdf_markdown = create_pdf_markdown(file_name)
-        columns[0].markdown(pdf_markdown, unsafe_allow_html=True)
+    columns[0].subheader("High level (< Q1)")
+    plot_user_markdown(columns[0], q1, sess_results, key)
 
-        columns[1].subheader("Medium level  (Q1 < X < Q2)")
-        option1 = columns[1].selectbox('choose user:', q12.index.tolist())
-        rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
-                                f"/{key}/{option1}/1"]["reading_speed"])
-        columns[1].plotly_chart(reading_speed_barplot(rs_dict))
-        file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
-                     / DIR_RENAME_DICT[key] / f"{option1}.pdf")
-        pdf_markdown = create_pdf_markdown(file_name)
-        columns[1].markdown(pdf_markdown, unsafe_allow_html=True)
+    columns[1].subheader("Medium level  (Q1 < X < Q2)")
+    plot_user_markdown(columns[1], q12, sess_results, key)
 
-        columns[2].subheader("Low level  (> Q2)")
-        option2 = columns[2].selectbox('choose user:', q2.index.tolist())
-        rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
-                                f"/{key}/{option2}/1"]["reading_speed"])
-        columns[2].plotly_chart(reading_speed_barplot(rs_dict))
-        file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
-                     / DIR_RENAME_DICT[key] / f"{option2}.pdf")
-        pdf_markdown = create_pdf_markdown(file_name)
-        columns[2].markdown(pdf_markdown, unsafe_allow_html=True)
+    columns[2].subheader("Low level  (> Q2)")
+    plot_user_markdown(columns[2], q2, sess_results, key)
 
 
 if __name__ == '__main__':
