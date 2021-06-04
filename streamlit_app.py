@@ -19,6 +19,11 @@ DIR_RENAME_DICT = {
     "Негативні тексти": "negative",
 }
 
+CHAR_TYPE_RENAME_DICT = {
+    "Рівномірний розподіл": "uniform",
+    "Усереднений за групою": "main_trend",
+}
+
 
 def load_sess_results():
     sess_results = {}
@@ -54,13 +59,36 @@ def jensen_shannon_divergance(p, q):
     return divergence
 
 
+def find_main_trend(sess_results, text_type, hist_shape):
+    main_trend_hist_dict = {}
+    for p, sess_res in sess_results.items():
+        type_ = p.split("/")[2]
+
+        if type_ == text_type:
+            for page, page_data in sess_res["heatmap_points"].items():
+                h = histogram2d(x=page_data['X'],
+                                y=page_data['Y'],
+                                bins=hist_shape,
+                                range=[[0, 1], [0, 1]])
+                if main_trend_hist_dict.get(page, np.array([])).any():
+                    main_trend_hist_dict[page] += h
+                else:
+                    main_trend_hist_dict[page] = h
+    return main_trend_hist_dict
+
+
 def find_similarity(df_u_dict: dict,
                     sess_results: dict,
                     text_type: str = "Нейтральні тексти",
+                    similarity_type: str = "uniform",
                     hist_shape: tuple = (50, 50)):
 
-    h1 = np.full(fill_value=(1 / (hist_shape[0]*hist_shape[1])),
-                 shape=hist_shape)
+    if similarity_type == "uniform":
+        h1 = np.full(fill_value=(1 / (hist_shape[0]*hist_shape[1])),
+                    shape=hist_shape)
+    elif similarity_type == "main_trend":
+        main_trend_hist_dict = find_main_trend(
+            sess_results, text_type, hist_shape)
 
     for p, sess_res in sess_results.items():
         type_ = p.split("/")[2]
@@ -68,15 +96,18 @@ def find_similarity(df_u_dict: dict,
 
         if type_ == text_type:
             jensen_div = []
-            for _, page_data in sess_res["heatmap_points"].items():
+            for page, page_data in sess_res["heatmap_points"].items():
                 h0 = histogram2d(x=page_data['X'],
                                  y=page_data['Y'],
                                  bins=hist_shape,
                                  range=[[0, 1], [0, 1]])
+                if similarity_type == "main_trend":
+                    h1 = main_trend_hist_dict[page]
 
                 jensen_div.append(
                     jensen_shannon_divergance(h0, h1)
                 )
+
             if jensen_div:
                 jensen_div_mean = np.median(jensen_div)
                 df_u_dict[text_type].loc[
@@ -85,7 +116,7 @@ def find_similarity(df_u_dict: dict,
     return df_u_dict[text_type]
 
 
-def find_group_depndencies(sess_results):
+def find_group_depndencies(sess_results, similarity_type):
     neutral_idxs = [k.split("/")[-2] for k in sess_results.keys()
                     if k.split("/")[2] == "Нейтральні тексти"]
     negative_idxs = [k.split("/")[-2] for k in sess_results.keys()
@@ -107,7 +138,7 @@ def find_group_depndencies(sess_results):
     }
 
     for ttype in ("Нейтральні тексти", "Негативні тексти", "Позитивні тексти"):
-        find_similarity(similarity_dict, sess_results, ttype)
+        find_similarity(similarity_dict, sess_results, ttype, similarity_type)
 
     return similarity_dict
 
@@ -130,13 +161,13 @@ def plot_similarity_hist(similarity_dict):
     # Add title
     fig.update_layout(title_text=('Jensen Shennon Divergance similarity with '
                                   'uniform distribution'),
-                      xaxis_range=[0.3, 0.7],
+                    #   xaxis_range=[0.0, 1.0],
                       bargap=0.2,  # gap between bars of adjacent location coordinates
                       bargroupgap=0.1,  # gap between bars of the same location coordinates
-                      width=900, height=700
+                      width=1200, height=800
                       )
 
-    columns = st.beta_columns([1, 3, 1])
+    columns = st.beta_columns([1, 12, 1])
     columns[1].plotly_chart(fig)
 
 
@@ -182,10 +213,9 @@ def plot_user_markdown(column, q, sess_results, key):
     column.markdown(pdf_markdown, unsafe_allow_html=True)
 
 
-
 def similarity_clusters_visualization(similarity_dict: dict,
                                       sess_results: dict):
-    key = st.selectbox('Select type:', [*similarity_dict.keys()])
+    key = st.selectbox('Select group type:', [*similarity_dict.keys()])
     df = similarity_dict[key]
 
     quantiles = df.quantile([0.25, 0.5, 0.75])
@@ -212,10 +242,13 @@ def similarity_clusters_visualization(similarity_dict: dict,
 
 
 if __name__ == '__main__':
-    sess_results = load_sess_results()
-    similarity_dict = find_group_depndencies(sess_results)
-
-    # streamlit visualization
     st.set_page_config(layout="wide")
+    sess_results = load_sess_results()
+    similarity_type = CHAR_TYPE_RENAME_DICT[
+        st.selectbox('Choose characteristic of interest:',
+                     [*CHAR_TYPE_RENAME_DICT.keys()])
+    ]
+    similarity_dict = find_group_depndencies(sess_results, similarity_type)
+
     plot_similarity_hist(similarity_dict)
     similarity_clusters_visualization(similarity_dict, sess_results)
