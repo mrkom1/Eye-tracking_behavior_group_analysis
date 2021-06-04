@@ -160,7 +160,7 @@ def plot_similarity_hist(similarity_dict):
                              )
     # Add title
     fig.update_layout(title_text=('Jensen Shennon Divergance similarity with '
-                                  'uniform distribution'),
+                                  'uniform distribution:'),
                     #   xaxis_range=[0.0, 1.0],
                       bargap=0.2,  # gap between bars of adjacent location coordinates
                       bargroupgap=0.1,  # gap between bars of the same location coordinates
@@ -231,13 +231,13 @@ def similarity_clusters_visualization(similarity_dict: dict,
     q2 = df[(df >= quantiles.loc[0.75,
                                     "jensen_shennon_divergance"]).values]
 
-    columns[0].subheader("High level (< Q1)")
+    columns[0].subheader("Highest similarity (25%)")
     plot_user_markdown(columns[0], q1, sess_results, key)
 
-    columns[1].subheader("Medium level  (Q1 < X < Q2)")
+    columns[1].subheader("Medium similarity (50%)")
     plot_user_markdown(columns[1], q12, sess_results, key)
 
-    columns[2].subheader("Low level  (> Q2)")
+    columns[2].subheader("Lowest similarity (25%)")
     plot_user_markdown(columns[2], q2, sess_results, key)
 
 
