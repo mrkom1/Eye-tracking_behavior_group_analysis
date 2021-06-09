@@ -206,8 +206,13 @@ def plot_user_markdown(column, q, sess_results, key):
     rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
                             f"/{key}/{option}/1"]["reading_speed"])
     column.plotly_chart(reading_speed_barplot(rs_dict))
-    file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
-                 / DIR_RENAME_DICT[key] / f"{option}.pdf")
+    blinks_show = column.checkbox("show blinks", key=str(column))
+    if blinks_show:
+        file_name = (ROOT_DATA_FOLDER / "blinks_heatmaps_filtered" / "personal"
+                     / DIR_RENAME_DICT[key] / f"{option}.pdf")
+    else:
+        file_name = (ROOT_DATA_FOLDER / "reading_heatmaps_filtered" / "personal"
+                    / DIR_RENAME_DICT[key] / f"{option}.pdf")
     pdf_markdown = create_pdf_markdown(file_name)
     column.markdown(pdf_markdown, unsafe_allow_html=True)
 
