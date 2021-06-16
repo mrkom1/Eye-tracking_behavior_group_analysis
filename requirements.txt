@@ -5,3 +5,4 @@ scipy
 fast_histogram
 plotly
 streamlit
+fastdtw

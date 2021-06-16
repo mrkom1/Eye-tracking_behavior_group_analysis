@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.stats import entropy
+from scipy.spatial.distance import euclidean
+from fastdtw import fastdtw
 from fast_histogram import histogram2d
 import streamlit as st
 import plotly.figure_factory as ff
@@ -22,6 +24,7 @@ DIR_RENAME_DICT = {
 CHAR_TYPE_RENAME_DICT = {
     "Рівномірний розподіл": "uniform",
     "Усереднений за групою": "main_trend",
+    "Динамічне усереднення": "dtw"
 }
 
 
@@ -83,7 +86,7 @@ def find_similarity(df_u_dict: dict,
                     similarity_type: str = "uniform",
                     hist_shape: tuple = (50, 50)):
 
-    if similarity_type == "uniform":
+    if similarity_type == "uniform" or "dtw":
         h1 = np.full(fill_value=(1 / (hist_shape[0]*hist_shape[1])),
                     shape=hist_shape)
     elif similarity_type == "main_trend":
@@ -104,14 +107,31 @@ def find_similarity(df_u_dict: dict,
                 if similarity_type == "main_trend":
                     h1 = main_trend_hist_dict[page]
 
-                jensen_div.append(
-                    jensen_shannon_divergance(h0, h1)
-                )
+                if similarity_type == "dtw":
+                    jensen_div.append(
+                        fastdtw(h0, h1, dist=euclidean)[0]
+                    )
+                else:
+                    jensen_div.append(
+                        jensen_shannon_divergance(h0, h1)
+                    )
 
             if jensen_div:
-                jensen_div_mean = np.median(jensen_div)
+                if similarity_type == "dtw":
+                    jensen_div_mean = 1/np.mean(jensen_div)
+                else:
+                    jensen_div_mean = np.median(jensen_div)
                 df_u_dict[text_type].loc[
                     name_, "jensen_shennon_divergance"] = jensen_div_mean
+    if similarity_type == "dtw":
+        distances = df_u_dict[text_type].loc[
+            :, "jensen_shennon_divergance"].values
+        if (np.max(distances) - np.min(distances)) != 0:
+            df_u_dict[text_type].loc[
+                :, "jensen_shennon_divergance"] = (
+                    (distances-np.min(distances))
+                    / (np.max(distances) - np.min(distances))
+                    )
     df_u_dict[text_type] = df_u_dict[text_type].astype(float)
     return df_u_dict[text_type]
 
@@ -159,7 +179,7 @@ def plot_similarity_hist(similarity_dict):
                              colors=colors, bin_size=.02,
                              )
     # Add title
-    fig.update_layout(title_text=('Jensen Shennon Divergance similarity:'),
+    fig.update_layout(title_text=('Similarity:'),
                     #   xaxis_range=[0.0, 1.0],
                       bargap=0.2,  # gap between bars of adjacent location coordinates
                       bargroupgap=0.1,  # gap between bars of the same location coordinates
