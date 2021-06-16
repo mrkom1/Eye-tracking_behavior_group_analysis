@@ -24,7 +24,6 @@ DIR_RENAME_DICT = {
 CHAR_TYPE_RENAME_DICT = {
     "Рівномірний розподіл": "uniform",
     "Усереднений за групою": "main_trend",
-    "Динамічне усереднення": "dtw"
 }
 
 
@@ -84,9 +83,10 @@ def find_similarity(df_u_dict: dict,
                     sess_results: dict,
                     text_type: str = "Нейтральні тексти",
                     similarity_type: str = "uniform",
+                    metric_type: str = "Jensen-Shennon",
                     hist_shape: tuple = (50, 50)):
 
-    if similarity_type == "uniform" or "dtw":
+    if similarity_type == "uniform":
         h1 = np.full(fill_value=(1 / (hist_shape[0]*hist_shape[1])),
                     shape=hist_shape)
     elif similarity_type == "main_trend":
@@ -107,7 +107,7 @@ def find_similarity(df_u_dict: dict,
                 if similarity_type == "main_trend":
                     h1 = main_trend_hist_dict[page]
 
-                if similarity_type == "dtw":
+                if metric_type == "DTW":
                     jensen_div.append(
                         fastdtw(h0, h1, dist=euclidean)[0]
                     )
@@ -117,18 +117,18 @@ def find_similarity(df_u_dict: dict,
                     )
 
             if jensen_div:
-                if similarity_type == "dtw":
+                if metric_type == "DTW":
                     jensen_div_mean = 1/np.mean(jensen_div)
                 else:
                     jensen_div_mean = np.median(jensen_div)
                 df_u_dict[text_type].loc[
-                    name_, "jensen_shennon_divergance"] = jensen_div_mean
-    if similarity_type == "dtw":
+                    name_, "point_distance"] = jensen_div_mean
+    if similarity_type == "DTW":
         distances = df_u_dict[text_type].loc[
-            :, "jensen_shennon_divergance"].values
+            :, "point_distance"].values
         if (np.max(distances) - np.min(distances)) != 0:
             df_u_dict[text_type].loc[
-                :, "jensen_shennon_divergance"] = (
+                :, "point_distance"] = (
                     (distances-np.min(distances))
                     / (np.max(distances) - np.min(distances))
                     )
@@ -136,7 +136,7 @@ def find_similarity(df_u_dict: dict,
     return df_u_dict[text_type]
 
 
-def find_group_depndencies(sess_results, similarity_type):
+def find_group_depndencies(sess_results, similarity_type, metric_type):
     neutral_idxs = [k.split("/")[-2] for k in sess_results.keys()
                     if k.split("/")[2] == "Нейтральні тексти"]
     negative_idxs = [k.split("/")[-2] for k in sess_results.keys()
@@ -145,11 +145,11 @@ def find_group_depndencies(sess_results, similarity_type):
                      if k.split("/")[2] == "Позитивні тексти"]
 
     neutral_df = pd.DataFrame(index=neutral_idxs,
-                              columns=["jensen_shennon_divergance"])
+                              columns=["point_distance"])
     negative_df = pd.DataFrame(index=negative_idxs,
-                               columns=["jensen_shennon_divergance"])
+                               columns=["point_distance"])
     positive_df = pd.DataFrame(index=positive_idxs,
-                               columns=["jensen_shennon_divergance"])
+                               columns=["point_distance"])
 
     similarity_dict = {
         "Нейтральні тексти": neutral_df,
@@ -158,7 +158,8 @@ def find_group_depndencies(sess_results, similarity_type):
     }
 
     for ttype in ("Нейтральні тексти", "Негативні тексти", "Позитивні тексти"):
-        find_similarity(similarity_dict, sess_results, ttype, similarity_type)
+        find_similarity(similarity_dict, sess_results,
+                        ttype, similarity_type, metric_type)
 
     return similarity_dict
 
@@ -168,11 +169,11 @@ def plot_similarity_hist(similarity_dict):
                     "Негативні тексти", "Позитивні тексти"]
     colors = ['#4F57BB', '#A84C3A', '#499B79']
     hist_data = [similarity_dict[group_labels[0]].dropna(
-    ).jensen_shennon_divergance.values,
+    ).point_distance.values,
         similarity_dict[group_labels[1]].dropna(
-    ).jensen_shennon_divergance.values,
+    ).point_distance.values,
         similarity_dict[group_labels[2]].dropna(
-    ).jensen_shennon_divergance.values, ]
+    ).point_distance.values, ]
 
     # Create distplot with curve_type set to 'normal'
     fig = ff.create_distplot(hist_data, group_labels,
@@ -247,13 +248,13 @@ def similarity_clusters_visualization(similarity_dict: dict,
     columns = st.beta_columns(3)
 
     q1 = df[(df <= quantiles.loc[0.25,
-                                    "jensen_shennon_divergance"]).values]
+                                    "point_distance"]).values]
     q12 = df[(df >= quantiles.loc[0.25,
-                                    "jensen_shennon_divergance"]).values
+                                    "point_distance"]).values
                 & (df <= quantiles.loc[0.75,
-                                    "jensen_shennon_divergance"]).values]
+                                    "point_distance"]).values]
     q2 = df[(df >= quantiles.loc[0.75,
-                                    "jensen_shennon_divergance"]).values]
+                                    "point_distance"]).values]
 
     columns[0].subheader("Highest similarity (25%)")
     plot_user_markdown(columns[0], q1, sess_results, key)
@@ -272,7 +273,12 @@ if __name__ == '__main__':
         st.selectbox('Choose characteristic of interest:',
                      [*CHAR_TYPE_RENAME_DICT.keys()])
     ]
-    similarity_dict = find_group_depndencies(sess_results, similarity_type)
+
+    metric_type = st.selectbox('Choose metric:', ["Jensen-Shennon", "DTW"])
+
+    similarity_dict = find_group_depndencies(sess_results, 
+                                             similarity_type,
+                                             metric_type)
 
     plot_similarity_hist(similarity_dict)
     similarity_clusters_visualization(similarity_dict, sess_results)
