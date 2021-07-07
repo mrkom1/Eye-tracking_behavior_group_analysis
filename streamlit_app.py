@@ -98,7 +98,7 @@ def find_similarity(df_u_dict: dict,
         name_ = p.split("/")[-2]
 
         if type_ == text_type:
-            jensen_div = []
+            similarity_list = []
             for page, page_data in sess_res["heatmap_points"].items():
                 h0 = histogram2d(x=page_data['X'],
                                  y=page_data['Y'],
@@ -108,31 +108,33 @@ def find_similarity(df_u_dict: dict,
                     h1 = main_trend_hist_dict[page]
 
                 if metric_type == "DTW":
-                    jensen_div.append(
+                    similarity_list.append(
                         fastdtw(h0, h1, dist=euclidean)[0]
                     )
                 else:
-                    jensen_div.append(
+                    similarity_list.append(
                         jensen_shannon_divergance(h0, h1)
                     )
 
-            if jensen_div:
+            if similarity_list:
                 if metric_type == "DTW":
-                    jensen_div_mean = 1/np.mean(jensen_div)
+                    similarity_mean = np.mean(similarity_list)
                 else:
-                    jensen_div_mean = np.median(jensen_div)
-                df_u_dict[text_type].loc[
-                    name_, "point_distance"] = jensen_div_mean
-    if similarity_type == "DTW":
-        distances = df_u_dict[text_type].loc[
+                    similarity_mean = np.median(similarity_list)
+                df_u_dict[text_type]["mean"].loc[
+                    name_, "point_distance"] = similarity_mean
+                df_u_dict[text_type]["pages"][name_] = similarity_list
+
+    if metric_type == "DTW":
+        distances = df_u_dict[text_type]["mean"].loc[
             :, "point_distance"].values
         if (np.max(distances) - np.min(distances)) != 0:
-            df_u_dict[text_type].loc[
+            df_u_dict[text_type]["mean"].loc[
                 :, "point_distance"] = (
-                    (distances-np.min(distances))
-                    / (np.max(distances) - np.min(distances))
+                    distances
+                    / np.max(distances)
                     )
-    df_u_dict[text_type] = df_u_dict[text_type].astype(float)
+    df_u_dict[text_type]["mean"] = df_u_dict[text_type]["mean"].astype(float)
     return df_u_dict[text_type]
 
 
@@ -152,9 +154,12 @@ def find_group_depndencies(sess_results, similarity_type, metric_type):
                                columns=["point_distance"])
 
     similarity_dict = {
-        "Нейтральні тексти": neutral_df,
-        "Негативні тексти": negative_df,
-        "Позитивні тексти": positive_df
+        "Нейтральні тексти": {"mean": neutral_df,
+                              "pages": {}},
+        "Негативні тексти": {"mean": negative_df,
+                             "pages": {}},
+        "Позитивні тексти": {"mean": positive_df,
+                             "pages": {}}
     }
 
     for ttype in ("Нейтральні тексти", "Негативні тексти", "Позитивні тексти"):
@@ -168,11 +173,11 @@ def plot_similarity_hist(similarity_dict):
     group_labels = ["Нейтральні тексти",
                     "Негативні тексти", "Позитивні тексти"]
     colors = ['#4F57BB', '#A84C3A', '#499B79']
-    hist_data = [similarity_dict[group_labels[0]].dropna(
+    hist_data = [similarity_dict[group_labels[0]]["mean"].dropna(
     ).point_distance.values,
-        similarity_dict[group_labels[1]].dropna(
+        similarity_dict[group_labels[1]]["mean"].dropna(
     ).point_distance.values,
-        similarity_dict[group_labels[2]].dropna(
+        similarity_dict[group_labels[2]]["mean"].dropna(
     ).point_distance.values, ]
 
     # Create distplot with curve_type set to 'normal'
@@ -204,11 +209,13 @@ def reading_speed_barplot(rs_dict: dict):
                y=[*rs_dict["all"]],
                x=[*rs_dict["all"].values()],
                text=[*rs_dict["all"].values()],
+               textposition='auto',
                orientation='h'),
         go.Bar(name='Reading gazes',
                y=[*rs_dict["reading"]],
                x=[*rs_dict["reading"].values()],
                text=[*rs_dict["reading"].values()],
+               textposition='auto',
                orientation='h'),
     ])
 
@@ -222,11 +229,32 @@ def reading_speed_barplot(rs_dict: dict):
     return fig
 
 
-def plot_user_markdown(column, q, sess_results, key):
+def similarity_barplot(sim_list: dict):
+    fig = go.Figure(data=[
+        go.Bar(name='Similarity',
+               y=list(range(1, len(sim_list)+1)),
+               x=sim_list,
+               text=[round(i, 2) for i in sim_list],
+               textposition='auto',
+               orientation='h'),
+    ])
+
+    fig.update_layout(
+        xaxis_title="similarity",
+        yaxis_title="page",
+        width=500,
+        height=400
+    )
+    fig['layout']['yaxis']['autorange'] = "reversed"
+    return fig
+
+
+def plot_user_markdown(column, q, sess_results, similarity_dict, key):
     option = column.selectbox('Choose user:', q.index.tolist())
     rs_dict = (sess_results["dataset_journalists/eye_tracking_recordings"
                             f"/{key}/{option}/1"]["reading_speed"])
     column.plotly_chart(reading_speed_barplot(rs_dict))
+    column.plotly_chart(similarity_barplot(similarity_dict[key]["pages"][option]))
     blinks_show = column.checkbox("show blinks", key=str(column))
     if blinks_show:
         file_name = (ROOT_DATA_FOLDER / "blinks_heatmaps_filtered" / "personal"
@@ -241,7 +269,7 @@ def plot_user_markdown(column, q, sess_results, key):
 def similarity_clusters_visualization(similarity_dict: dict,
                                       sess_results: dict):
     key = st.selectbox('Select group type:', [*similarity_dict.keys()])
-    df = similarity_dict[key]
+    df = similarity_dict[key]["mean"]
 
     quantiles = df.quantile([0.25, 0.5, 0.75])
 
@@ -257,13 +285,13 @@ def similarity_clusters_visualization(similarity_dict: dict,
                                     "point_distance"]).values]
 
     columns[0].subheader("Highest similarity (25%)")
-    plot_user_markdown(columns[0], q1, sess_results, key)
+    plot_user_markdown(columns[0], q1, sess_results, similarity_dict, key)
 
     columns[1].subheader("Medium similarity (50%)")
-    plot_user_markdown(columns[1], q12, sess_results, key)
+    plot_user_markdown(columns[1], q12, sess_results, similarity_dict, key)
 
     columns[2].subheader("Lowest similarity (25%)")
-    plot_user_markdown(columns[2], q2, sess_results, key)
+    plot_user_markdown(columns[2], q2, sess_results, similarity_dict, key)
 
 
 if __name__ == '__main__':
